@@ -112,12 +112,15 @@ export function registerMessageListener(app: App): void {
 
         // If the sender is the registered user themselves
         if (senderUserId === trackedUserId) {
-          logger.info(`[Event: message] User ${trackedUserId} posted in channel ${channelId} — marking channel items DONE`);
-          await itemService.markChannelDone({
-            workspaceId,
-            userId: trackedUserId,
-            channelId,
-          });
+          // Only auto-mark-done for Direct Messages and Group DMs when active in the chat
+          if (channelType === 'im' || channelType === 'mpim') {
+            logger.info(`[Event: message] User ${trackedUserId} posted in DM/Group DM ${channelId} — marking channel items DONE`);
+            await itemService.markChannelDone({
+              workspaceId,
+              userId: trackedUserId,
+              channelId,
+            });
+          }
 
           if (threadTs) {
             logger.info(`[Event: message] User ${trackedUserId} replied in thread ${threadTs} — marking thread items DONE`);
