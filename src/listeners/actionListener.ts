@@ -41,6 +41,7 @@ export function registerActionListeners(app: App): void {
       if (!workspaceId) return;
 
       const executingUser = command.user_id;
+      logger.info(`[Command: /pause] Triggered by user=${executingUser} in workspace=${workspaceId} with args="${command.text}"`);
 
       // Check if the user is registered in this workspace
       let userRecord = await prisma.user.findUnique({
@@ -53,7 +54,7 @@ export function registerActionListeners(app: App): void {
       });
 
       if (!userRecord) {
-        // Register them on the fly!
+        logger.info(`[User Register] Auto-registering user=${executingUser} on the fly via /pause command`);
         await prisma.user.create({
           data: {
             id: executingUser,
@@ -91,6 +92,10 @@ export function registerActionListeners(app: App): void {
         });
         return;
       }
+
+      logger.info(
+        `[Command: /pause] Parsing successful: item_id=${id}, duration=${durationStr}, until=${until.toISOString()}`
+      );
 
       const item = await itemService.snooze(id, workspaceId, until);
       if (!item) {

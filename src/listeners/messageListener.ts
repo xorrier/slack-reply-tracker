@@ -54,8 +54,13 @@ export function registerMessageListener(app: App): void {
       const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
       const channelType = message.channel_type ?? 'channel';
 
+      logger.info(
+        `[Event: message] Received message: user=${senderUserId}, channel=${channelId}, type=${channelType}, ts=${messageTs}`
+      );
+
       // 1. Handle Direct Message to the bot (1-to-1 IM)
       if (channelType === 'im') {
+        logger.info(`[Event: message] Processing DM to bot from user=${senderUserId}`);
         const userRecord = await prisma.user.findUnique({
           where: {
             id_workspaceId: {
@@ -66,6 +71,7 @@ export function registerMessageListener(app: App): void {
         });
 
         if (!userRecord) {
+          logger.info(`[User Register] Auto-registering user=${senderUserId} via DM`);
           await prisma.user.create({
             data: {
               id: senderUserId,
@@ -73,10 +79,13 @@ export function registerMessageListener(app: App): void {
             },
           });
 
+          logger.info(`[User Register] Successfully registered user=${senderUserId}, sending welcome DM`);
           await client.chat.postMessage({
             channel: channelId,
             text: `👋 *Welcome to Reply Tracker!* I have registered your user ID (\`${senderUserId}\`).\n\nI will now track messages in channels I have access to where you are mentioned, or where someone replies to threads you've participated in. Every morning at 9:00 AM, I'll send you a digest of your pending items here.\n\nUse \`/pause <id> <duration>\` to snooze items if you need more time to reply!`,
           });
+        } else {
+          logger.debug(`[Event: message] User=${senderUserId} is already registered`);
         }
         return; // DMs to the bot are not tracked as items for the sender to reply to
       }
@@ -86,7 +95,12 @@ export function registerMessageListener(app: App): void {
         where: { workspaceId },
       });
 
-      if (registeredUsers.length === 0) return;
+      if (registeredUsers.length === 0) {
+        logger.debug(`[Event: message] No registered users in workspace ${workspaceId}, skipping checks`);
+        return;
+      }
+
+      logger.info(`[Event: message] Evaluating message for ${registeredUsers.length} registered user(s)`);
 
       // Get the team info for building the Slack link
       const teamInfo = await client.team.info({ team: workspaceId });
@@ -99,6 +113,7 @@ export function registerMessageListener(app: App): void {
         // If the sender is the registered user themselves
         if (senderUserId === trackedUserId) {
           if (threadTs) {
+            logger.info(`[Event: message] User ${trackedUserId} replied in thread ${threadTs} — marking items DONE`);
             recordParticipation(workspaceId, trackedUserId, threadTs);
             await itemService.markThreadDone({
               workspaceId,
@@ -114,6 +129,7 @@ export function registerMessageListener(app: App): void {
           [...(participatedThreads.get(getThreadKey(workspaceId, trackedUserId)) ?? [])]
         );
 
+        logger.debug(`[Event: message] Checking track eligibility for user=${trackedUserId}`);
         const decision = shouldTrack({
           text: messageText,
           botUserId: trackedUserId,
@@ -123,6 +139,7 @@ export function registerMessageListener(app: App): void {
         });
 
         if (decision.track) {
+          logger.info(`[Event: message] Flagged message for user=${trackedUserId} (reason: ${decision.reason})`);
           const slackLink = buildSlackLink({
             workspaceDomain,
             channelId,
@@ -141,6 +158,8 @@ export function registerMessageListener(app: App): void {
             slackLink,
             reason: decision.reason,
           });
+        } else {
+          logger.debug(`[Event: message] Message is not trackable for user=${trackedUserId}`);
         }
       }
     } catch (err) {
