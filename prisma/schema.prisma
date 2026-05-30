@@ -1,0 +1,77 @@
+// This is your Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One row per Slack workspace that has installed the bot.
+// The bot_token is the workspace-level access token (xoxb-...)
+model Workspace {
+  id        String   @id // Slack team_id (e.g. T01ABC123)
+  teamName  String
+  botToken  String
+  createdAt DateTime @default(now())
+
+  users        User[]
+  trackedItems TrackedItem[]
+
+  @@map("workspaces")
+}
+
+// One row per registered Slack user who has opted-in to the tracker.
+model User {
+  id          String    // Slack user_id (e.g. U01ABC123)
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@id([id, workspaceId])
+  @@map("users")
+}
+
+// Tracking reasons — why a message was flagged for attention
+enum TrackingReason {
+  MENTIONED       // Bot's user was @mentioned
+  THREAD_REPLY    // Someone replied to a thread the user participated in
+  DIRECT_MESSAGE  // A DM was received
+  ACTION_PHRASE   // Message contains a phrase like "can you", "please review", etc.
+}
+
+// Status of a tracked item
+enum ItemStatus {
+  PENDING  // Needs attention
+  DONE     // Handled — won't appear in digest
+  SNOOZED  // Temporarily hidden — reactivates after snoozed_until
+}
+
+// One row per message that needs attention for a specific user.
+model TrackedItem {
+  id           Int             @id @default(autoincrement())
+  workspaceId  String
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id])
+
+  userId       String          // Slack user_id of the person who should reply
+  channelId    String          // Slack channel_id where the message was posted
+  messageTz    String          // Slack message timestamp (used as Slack's message ID)
+  threadTs     String?         // Set if the message is inside a thread
+  authorId     String          // Slack user_id of the message sender
+  messageText  String
+  slackLink    String          // Deep link to the original Slack message
+  reason       TrackingReason
+
+  status       ItemStatus      @default(PENDING)
+  snoozedUntil DateTime?       // Only set when status = SNOOZED
+
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  // Prevent tracking the same message twice for the same user in the same workspace
+  @@unique([workspaceId, userId, messageTz])
+  @@map("tracked_items")
+}
