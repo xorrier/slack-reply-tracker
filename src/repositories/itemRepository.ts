@@ -108,6 +108,26 @@ export async function markThreadItemsDone(params: {
 }
 
 /**
+ * Mark all tracked items in a specific channel/chat as DONE for a user.
+ * Triggered when the user is active (posts a message) in that channel/chat.
+ */
+export async function markChannelItemsDone(params: {
+  workspaceId: string;
+  userId: string;
+  channelId: string;
+}): Promise<void> {
+  await prisma.trackedItem.updateMany({
+    where: {
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      channelId: params.channelId,
+      status: { not: ItemStatus.DONE },
+    },
+    data: { status: ItemStatus.DONE },
+  });
+}
+
+/**
  * Snooze a tracked item until a future date/time.
  */
 export async function snoozeItem(id: number, until: Date): Promise<TrackedItem> {

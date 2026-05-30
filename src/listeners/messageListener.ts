@@ -112,8 +112,15 @@ export function registerMessageListener(app: App): void {
 
         // If the sender is the registered user themselves
         if (senderUserId === trackedUserId) {
+          logger.info(`[Event: message] User ${trackedUserId} posted in channel ${channelId} — marking channel items DONE`);
+          await itemService.markChannelDone({
+            workspaceId,
+            userId: trackedUserId,
+            channelId,
+          });
+
           if (threadTs) {
-            logger.info(`[Event: message] User ${trackedUserId} replied in thread ${threadTs} — marking items DONE`);
+            logger.info(`[Event: message] User ${trackedUserId} replied in thread ${threadTs} — marking thread items DONE`);
             recordParticipation(workspaceId, trackedUserId, threadTs);
             await itemService.markThreadDone({
               workspaceId,

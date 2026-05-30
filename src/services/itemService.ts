@@ -107,6 +107,19 @@ export async function markThreadDone(params: {
 }
 
 /**
+ * Mark all items in a channel/chat as DONE.
+ * Called when the user replies/posts in the channel/chat.
+ */
+export async function markChannelDone(params: {
+  workspaceId: string;
+  userId: string;
+  channelId: string;
+}): Promise<void> {
+  await repo.markChannelItemsDone(params);
+  logger.info(`Marked channel ${params.channelId} items DONE for user ${params.userId}`);
+}
+
+/**
  * Reset all snoozed items with expired snooze dates back to PENDING.
  * Called once at midnight by the cron scheduler.
  */
