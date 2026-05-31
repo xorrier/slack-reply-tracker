@@ -52,7 +52,7 @@ export function registerMessageListener(app: App): void {
       const channelId = message.channel;
       const messageTs = message.ts;
       const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
-      const channelType = message.channel_type ?? 'channel';
+      const channelType = (message.channel_type as string) ?? 'channel';
 
       logger.info(
         `[Event: message] Received message: user=${senderUserId}, channel=${channelId}, type=${channelType}, ts=${messageTs}`
